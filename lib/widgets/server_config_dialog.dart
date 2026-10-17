@@ -48,7 +48,7 @@ class _ServerConfigDialogState extends State<ServerConfigDialog> {
       setState(() {
         _isTesting = false;
         _isSuccess = false;
-        _statusMessage = 'Connection failed: $e';
+        _statusMessage = '$e';
       });
     }
   }
@@ -72,79 +72,98 @@ class _ServerConfigDialogState extends State<ServerConfigDialog> {
           Text('Server Configuration'),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Configure Django Backend API URL:',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _urlController,
-            decoration: InputDecoration(
-              hintText: 'http://127.0.0.1:8000/api',
-              prefixIcon: const Icon(Icons.link_rounded),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Configure Django Backend API URL:',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _urlController,
+              decoration: InputDecoration(
+                hintText: 'http://127.0.0.1:8000/api',
+                prefixIcon: const Icon(Icons.link_rounded),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              ActionChip(
-                label: const Text('Localhost (Web/Desktop)'),
-                onPressed: () {
-                  setState(() {
-                    _urlController.text = 'http://127.0.0.1:8000/api';
-                  });
-                },
+            const SizedBox(height: 10),
+            Text(
+              'Quick Presets:',
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
-              ActionChip(
-                label: const Text('Android Emulator (10.0.2.2)'),
-                onPressed: () {
-                  setState(() {
-                    _urlController.text = 'http://10.0.2.2:8000/api';
-                  });
-                },
-              ),
-            ],
-          ),
-          if (_statusMessage != null) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: _isSuccess
-                    ? Colors.green.withValues(alpha: 0.15)
-                    : Colors.red.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isSuccess ? Icons.check_circle : Icons.error_outline,
-                    color: _isSuccess ? Colors.green : Colors.red,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _statusMessage!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _isSuccess ? Colors.green[800] : Colors.red[800],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                ActionChip(
+                  label: const Text('127.0.0.1:8000 (USB / PC)'),
+                  onPressed: () {
+                    setState(() {
+                      _urlController.text = 'http://127.0.0.1:8000/api';
+                    });
+                  },
+                ),
+                ActionChip(
+                  label: const Text('10.0.2.2:8000 (Emulator)'),
+                  onPressed: () {
+                    setState(() {
+                      _urlController.text = 'http://10.0.2.2:8000/api';
+                    });
+                  },
+                ),
+                ActionChip(
+                  label: const Text('10.163.155.79:8000 (Wi-Fi)'),
+                  onPressed: () {
+                    setState(() {
+                      _urlController.text = 'http://10.163.155.79:8000/api';
+                    });
+                  },
+                ),
+              ],
+            ),
+            if (_statusMessage != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _isSuccess
+                      ? Colors.green.withValues(alpha: 0.15)
+                      : Colors.red.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      _isSuccess ? Icons.check_circle : Icons.error_outline,
+                      color: _isSuccess ? Colors.green : Colors.red,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _statusMessage!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isSuccess ? Colors.green[800] : Colors.red[800],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
         OutlinedButton.icon(
