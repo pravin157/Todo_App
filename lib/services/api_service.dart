@@ -8,6 +8,7 @@ class ApiService {
   ApiService._internal();
 
   String _baseUrl = 'http://127.0.0.1:8000/api';
+  String? _authToken;
 
   static const List<String> fallbackUrls = [
     'http://127.0.0.1:8000/api',
@@ -16,6 +17,10 @@ class ApiService {
   ];
 
   String get baseUrl => _baseUrl;
+
+  void setAuthToken(String? token) {
+    _authToken = token;
+  }
 
   void setBaseUrl(String url) {
     var trimmed = url.trim();
@@ -34,47 +39,126 @@ class ApiService {
     return _uriFor(_baseUrl, path);
   }
 
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
+  Map<String, String> get _headers {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (_authToken != null && _authToken!.isNotEmpty) {
+      headers['Authorization'] = 'Token $_authToken';
+    }
+    return headers;
+  }
 
-  /// Fetch all todos with automatic fallback to alternate URLs if initial fails
-  Future<List<Todo>> getTodos() async {
-    // Try current _baseUrl first
+  /// Helper to send requests with fallback URL support
+  Future<http.Response> _sendWithFallback(
+    Future<http.Response> Function(String base) requestFn,
+  ) async {
     try {
-      return await _fetchFromUrl(_baseUrl);
+      return await requestFn(_baseUrl);
     } catch (initialError) {
-      debugPrint('Initial connection failed on $_baseUrl: $initialError');
-
-      // Try fallbacks
+      debugPrint('Request failed on $_baseUrl: $initialError');
       for (final candidate in fallbackUrls) {
         if (candidate == _baseUrl) continue;
         try {
-          debugPrint('Attempting fallback to $candidate');
-          final results = await _fetchFromUrl(candidate);
-          _baseUrl = candidate; // Remember working URL
-          debugPrint('Connected successfully to fallback: $candidate');
-          return results;
-        } catch (_) {
-          // Continue to next candidate
-        }
+          debugPrint('Retrying with fallback $candidate');
+          final res = await requestFn(candidate);
+          _baseUrl = candidate;
+          return res;
+        } catch (_) {}
       }
-
-      throw Exception(
-        'Could not connect to Django backend at $_baseUrl.\n'
-        '• If using a physical phone over USB: ensure "adb reverse tcp:8000 tcp:8000" is run.\n'
-        '• If using Wi-Fi: ensure your phone and PC are on the same Wi-Fi and Django is running.\n'
-        'Error: $initialError',
-      );
+      rethrow;
     }
   }
 
-  Future<List<Todo>> _fetchFromUrl(String base) async {
-    final url = _uriFor(base, 'todos/');
-    final response = await http
-        .get(url, headers: _headers)
-        .timeout(const Duration(seconds: 4));
+  /// Register user
+  Future<Map<String, dynamic>> register({
+    required String username,
+    required String email,
+    required String password,
+  }) async {
+    final body = jsonEncode({
+      'username': username.trim(),
+      'email': email.trim(),
+      'password': password,
+    });
+
+    final response = await _sendWithFallback((base) {
+      final url = _uriFor(base, 'auth/register/');
+      return http
+          .post(url, headers: _headers, body: body)
+          .timeout(const Duration(seconds: 8));
+    });
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (response.statusCode == 201) {
+      return data as Map<String, dynamic>;
+    } else {
+      String errorMsg = 'Registration failed.';
+      if (data is Map) {
+        final messages = <String>[];
+        data.forEach((k, v) {
+          if (v is List) {
+            messages.add('$k: ${v.join(", ")}');
+          } else {
+            messages.add('$k: $v');
+          }
+        });
+        if (messages.isNotEmpty) errorMsg = messages.join('\n');
+      }
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// Login user
+  Future<Map<String, dynamic>> login({
+    required String username,
+    required String password,
+  }) async {
+    final body = jsonEncode({
+      'username': username.trim(),
+      'password': password,
+    });
+
+    final response = await _sendWithFallback((base) {
+      final url = _uriFor(base, 'auth/login/');
+      return http
+          .post(url, headers: _headers, body: body)
+          .timeout(const Duration(seconds: 8));
+    });
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (response.statusCode == 200) {
+      return data as Map<String, dynamic>;
+    } else {
+      String errorMsg = 'Invalid username or password.';
+      if (data is Map && data['detail'] != null) {
+        errorMsg = data['detail'].toString();
+      }
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// Logout user
+  Future<void> logout() async {
+    try {
+      final url = _uri('auth/logout/');
+      await http
+          .post(url, headers: _headers)
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('Logout request notice: $e');
+    }
+  }
+
+  /// Fetch all todos for authenticated user
+  Future<List<Todo>> getTodos() async {
+    final response = await _sendWithFallback((base) {
+      final url = _uriFor(base, 'todos/');
+      return http
+          .get(url, headers: _headers)
+          .timeout(const Duration(seconds: 8));
+    });
 
     if (response.statusCode == 200) {
       final dynamic decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -90,8 +174,7 @@ class ApiService {
       }
       return [];
     } else {
-      throw Exception(
-          'HTTP ${response.statusCode}: ${response.body}');
+      throw Exception('HTTP ${response.statusCode}: ${response.body}');
     }
   }
 

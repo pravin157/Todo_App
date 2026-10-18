@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'models/todo.dart';
+import 'screens/auth_screen.dart';
 import 'services/api_service.dart';
+import 'services/auth_service.dart';
+import 'theme/app_theme.dart';
 import 'widgets/stats_header.dart';
+import 'widgets/theme_dialog.dart';
 import 'widgets/todo_card.dart';
 import 'widgets/todo_form_dialog.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AuthService.instance.init();
   runApp(const TodoApp());
 }
 
@@ -15,41 +20,27 @@ class TodoApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seedColor = Color(0xFF6366F1); // Modern Indigo
+    final themeController = AppThemeController.instance;
+    final authService = AuthService.instance;
 
-    return MaterialApp(
-      title: 'Django Todo App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          centerTitle: false,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
-      ),
-      home: const TodoHomeScreen(),
+    return AnimatedBuilder(
+      animation: Listenable.merge([themeController, authService]),
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'TaskFlow Pro',
+          debugShowCheckedModeBanner: false,
+          theme: themeController.getLightTheme(),
+          darkTheme: themeController.getDarkTheme(),
+          themeMode: themeController.themeMode,
+          home: !authService.isInitialized
+              ? const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                )
+              : authService.isAuthenticated
+                  ? const TodoHomeScreen()
+                  : const AuthScreen(),
+        );
+      },
     );
   }
 }
@@ -63,6 +54,8 @@ class TodoHomeScreen extends StatefulWidget {
 
 class _TodoHomeScreenState extends State<TodoHomeScreen> {
   final ApiService _apiService = ApiService.instance;
+  final AuthService _authService = AuthService.instance;
+
   List<Todo> _allTodos = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -99,8 +92,14 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      final errorStr = e.toString();
+      // If 401 Unauthorized, automatically log out
+      if (errorStr.contains('401') || errorStr.contains('Invalid token')) {
+        await _authService.logout();
+        return;
+      }
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = errorStr;
         _isLoading = false;
       });
     }
@@ -114,7 +113,7 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Task "${created.title}" created successfully!'),
+          content: Text('Task "${created.title}" created!'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -142,7 +141,6 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
   Future<void> _toggleTodoStatus(Todo todo, bool? value) async {
     if (todo.id == null || value == null) return;
 
-    // Optimistic UI update
     final prevCompleted = todo.isCompleted;
     setState(() {
       final index = _allTodos.indexWhere((t) => t.id == todo.id);
@@ -154,7 +152,6 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
     try {
       await _apiService.toggleTodoStatus(todo.id!, value);
     } catch (e) {
-      // Revert if error
       setState(() {
         final index = _allTodos.indexWhere((t) => t.id == todo.id);
         if (index != -1) {
@@ -237,19 +234,43 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
     );
   }
 
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _authService.logout();
+    }
+  }
 
   List<Todo> get _filteredTodos {
     return _allTodos.where((todo) {
-      // Status filter
       if (_statusFilter == 'PENDING' && todo.isCompleted) return false;
       if (_statusFilter == 'COMPLETED' && !todo.isCompleted) return false;
 
-      // Priority filter
       if (_priorityFilter != 'ALL' && todo.priority != _priorityFilter) {
         return false;
       }
 
-      // Search query
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         final matchTitle = todo.title.toLowerCase().contains(query);
@@ -264,22 +285,44 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final themeController = AppThemeController.instance;
+    final accent = themeController.currentAccent;
+    final isDark = themeController.isDarkMode;
+    final user = _authService.currentUser;
     final filtered = _filteredTodos;
+
+    final initialLetter = (user?.username.isNotEmpty ?? false)
+        ? user!.username[0].toUpperCase()
+        : 'U';
 
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
+            // User Avatar with gradient border
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
+                gradient: accent.gradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.primary.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Icon(
-                Icons.check_box_outlined,
-                color: theme.colorScheme.primary,
-                size: 24,
+              child: Center(
+                child: Text(
+                  initialLetter,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -287,15 +330,15 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'TaskFlow',
-                  style: theme.textTheme.titleLarge?.copyWith(
+                  user?.username != null ? 'Hi, ${user!.username}' : 'TaskFlow',
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  'Django REST + PostgreSQL',
+                  '${_allTodos.where((t) => !t.isCompleted).length} pending tasks',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: isDark ? Colors.white60 : Colors.black54,
                     fontSize: 11,
                   ),
                 ),
@@ -305,9 +348,19 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Customize Appearance',
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: () => ThemeCustomizerSheet.show(context),
+          ),
+          IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _fetchTodos,
+          ),
+          IconButton(
+            tooltip: 'Sign Out',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: _confirmLogout,
           ),
           const SizedBox(width: 8),
         ],
@@ -336,7 +389,7 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                       },
                       decoration: InputDecoration(
                         hintText: 'Search tasks by title or description...',
-                        prefixIcon: const Icon(Icons.search_rounded),
+                        prefixIcon: Icon(Icons.search_rounded, color: accent.primary),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded, size: 18),
@@ -346,16 +399,6 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                                 },
                               )
                             : null,
-                        filled: true,
-                        fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -370,20 +413,20 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                           _buildFilterChip('PENDING', 'Pending'),
                           const SizedBox(width: 8),
                           _buildFilterChip('COMPLETED', 'Completed'),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 14),
                           Container(
-                            height: 24,
-                            width: 1,
-                            color: theme.colorScheme.outlineVariant,
+                            height: 22,
+                            width: 1.2,
+                            color: isDark ? Colors.white24 : Colors.black12,
                           ),
-                          const SizedBox(width: 16),
-                          _buildPriorityChip('ALL', 'Any Priority'),
+                          const SizedBox(width: 14),
+                          _buildPriorityChip('ALL', 'All Priorities'),
                           const SizedBox(width: 8),
-                          _buildPriorityChip('HIGH', 'High', Colors.redAccent),
+                          _buildPriorityChip('HIGH', 'High', const Color(0xFFF43F5E)),
                           const SizedBox(width: 8),
-                          _buildPriorityChip('MEDIUM', 'Medium', Colors.orange),
+                          _buildPriorityChip('MEDIUM', 'Medium', const Color(0xFFF59E0B)),
                           const SizedBox(width: 8),
-                          _buildPriorityChip('LOW', 'Low', Colors.teal),
+                          _buildPriorityChip('LOW', 'Low', const Color(0xFF10B981)),
                         ],
                       ),
                     ),
@@ -404,7 +447,7 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                     children: [
                       CircularProgressIndicator(),
                       SizedBox(height: 16),
-                      Text('Connecting to Django backend...'),
+                      Text('Syncing tasks...'),
                     ],
                   ),
                 ),
@@ -421,7 +464,7 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.1),
+                            color: Colors.redAccent.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -442,11 +485,11 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                           _errorMessage!,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
+                            color: isDark ? Colors.white60 : Colors.black54,
                           ),
                         ),
                         const SizedBox(height: 20),
-                        FilledButton.icon(
+                        ElevatedButton.icon(
                           onPressed: _fetchTodos,
                           icon: const Icon(Icons.refresh_rounded),
                           label: const Text('Retry Connection'),
@@ -468,37 +511,45 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                            gradient: accent.gradient,
                             shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.primary.withValues(alpha: 0.3),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                           ),
-                          child: Icon(
-                            Icons.assignment_turned_in_outlined,
-                            size: 56,
-                            color: theme.colorScheme.primary,
+                          child: const Icon(
+                            Icons.assignment_turned_in_rounded,
+                            size: 46,
+                            color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
                         Text(
                           _allTodos.isEmpty
                               ? 'No tasks yet!'
-                              : 'No tasks match your filters',
+                              : 'No matching tasks found',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
+                            fontSize: 18,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           _allTodos.isEmpty
-                              ? 'Create your first todo task to stay productive.'
-                              : 'Try adjusting your search query or filter chips.',
+                              ? 'Create your first task to boost your productivity.'
+                              : 'Try adjusting your search keywords or filter pills.',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
+                            color: isDark ? Colors.white60 : Colors.black54,
                           ),
                         ),
                         if (_allTodos.isEmpty) ...[
                           const SizedBox(height: 20),
-                          FilledButton.icon(
+                          ElevatedButton.icon(
                             onPressed: () => _openTodoForm(),
                             icon: const Icon(Icons.add_rounded),
                             label: const Text('Add First Task'),
@@ -530,50 +581,127 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openTodoForm(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New Task'),
-        elevation: 3,
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: accent.gradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: accent.primary.withValues(alpha: 0.4),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () => _openTodoForm(),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          highlightElevation: 0,
+          icon: const Icon(Icons.add_rounded, color: Colors.white),
+          label: const Text(
+            'New Task',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildFilterChip(String filterKey, String label) {
+    final accent = AppThemeController.instance.currentAccent;
     final isSelected = _statusFilter == filterKey;
-    return FilterChip(
-      selected: isSelected,
-      label: Text(label),
-      onSelected: (_) {
-        setState(() => _statusFilter = filterKey);
-      },
+    final isDark = AppThemeController.instance.isDarkMode;
+
+    return GestureDetector(
+      onTap: () => setState(() => _statusFilter = filterKey),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isSelected ? accent.gradient : null,
+          color: isSelected
+              ? null
+              : (isDark ? const Color(0xFF131B2E) : Colors.white),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? Colors.transparent
+                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: accent.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.white70 : Colors.black87),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildPriorityChip(String priorityKey, String label, [Color? color]) {
+    final accent = AppThemeController.instance.currentAccent;
     final isSelected = _priorityFilter == priorityKey;
-    return FilterChip(
-      selected: isSelected,
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (color != null) ...[
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
+    final isDark = AppThemeController.instance.isDarkMode;
+
+    return GestureDetector(
+      onTap: () => setState(() => _priorityFilter = priorityKey),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (color ?? accent.primary).withValues(alpha: 0.15)
+              : (isDark ? const Color(0xFF131B2E) : Colors.white),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? (color ?? accent.primary)
+                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (color != null) ...[
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected
+                    ? (color ?? accent.primary)
+                    : (isDark ? Colors.white70 : Colors.black87),
               ),
             ),
-            const SizedBox(width: 6),
           ],
-          Text(label),
-        ],
+        ),
       ),
-      onSelected: (_) {
-        setState(() => _priorityFilter = priorityKey);
-      },
     );
   }
 }
