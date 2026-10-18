@@ -59,8 +59,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       _isLogin = isLogin;
       _errorMessage = null;
     });
-    _animController.reset();
-    _animController.forward();
   }
 
   Future<void> _submit() async {
@@ -128,16 +126,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           Positioned(
             top: -120,
             right: -80,
-            child: Container(
-              width: 320,
-              height: 320,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    accent.primary.withValues(alpha: isDark ? 0.28 : 0.16),
-                    Colors.transparent,
-                  ],
+            child: RepaintBoundary(
+              child: Container(
+                width: 320,
+                height: 320,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      accent.primary.withValues(alpha: isDark ? 0.28 : 0.16),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -145,16 +145,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           Positioned(
             bottom: -100,
             left: -80,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    accent.secondary.withValues(alpha: isDark ? 0.24 : 0.12),
-                    Colors.transparent,
-                  ],
+            child: RepaintBoundary(
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      accent.secondary.withValues(alpha: isDark ? 0.24 : 0.12),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),

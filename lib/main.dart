@@ -403,19 +403,21 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
       ),
 
       // Tab Views: 0 = Dashboard, 1 = Tasks List
-      body: _selectedTabIndex == 0
-          ? DashboardScreen(
-              todos: _allTodos,
-              onAddTask: () => _openTodoForm(),
-              onNavigateToTasksWithFilter: _navigateToTasksWithFilter,
-              onToggleTodo: _toggleTodoStatus,
-              onRefresh: _fetchTodos,
-            )
-          : RefreshIndicator(
-              onRefresh: _fetchTodos,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
+      body: IndexedStack(
+        index: _selectedTabIndex,
+        children: [
+          DashboardScreen(
+            todos: _allTodos,
+            onAddTask: () => _openTodoForm(),
+            onNavigateToTasksWithFilter: _navigateToTasksWithFilter,
+            onToggleTodo: _toggleTodoStatus,
+            onRefresh: _fetchTodos,
+          ),
+          RefreshIndicator(
+            onRefresh: _fetchTodos,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
                   // Dashboard Stats Header
                   SliverToBoxAdapter(
                     child: StatsHeader(todos: _allTodos),
@@ -631,42 +633,53 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                 ],
               ),
             ),
+          ],
+        ),
 
       // Bottom Navigation Bar
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF131B2E) : Colors.white,
+        decoration: const BoxDecoration(
+          color: Color(0xFF131B2E),
           border: Border(
             top: BorderSide(
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+              color: Color(0xFF1E293B),
               width: 1.2,
             ),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+              color: Colors.black54,
               blurRadius: 16,
-              offset: const Offset(0, -4),
+              offset: Offset(0, -4),
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavTab(
-              index: 0,
-              icon: Icons.dashboard_outlined,
-              selectedIcon: Icons.dashboard_rounded,
-              label: 'Dashboard',
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildNavTab(
+                    index: 0,
+                    icon: Icons.dashboard_outlined,
+                    selectedIcon: Icons.dashboard_rounded,
+                    label: 'Dashboard',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildNavTab(
+                    index: 1,
+                    icon: Icons.checklist_outlined,
+                    selectedIcon: Icons.checklist_rounded,
+                    label: 'My Tasks',
+                  ),
+                ),
+              ],
             ),
-            _buildNavTab(
-              index: 1,
-              icon: Icons.checklist_outlined,
-              selectedIcon: Icons.checklist_rounded,
-              label: 'My Tasks',
-            ),
-          ],
+          ),
         ),
       ),
 
@@ -706,18 +719,16 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
   }) {
     final isSelected = _selectedTabIndex == index;
     final accent = AppThemeController.instance.currentAccent;
-    final isDark = AppThemeController.instance.isDarkMode;
 
-    return GestureDetector(
+    return InkWell(
       onTap: () => setState(() => _selectedTabIndex = index),
+      borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           gradient: isSelected ? accent.gradient : null,
-          color: isSelected
-              ? null
-              : Colors.transparent,
+          color: isSelected ? null : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           boxShadow: isSelected
               ? [
@@ -729,15 +740,15 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                 ]
               : [],
         ),
+        alignment: Alignment.center,
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               isSelected ? selectedIcon : icon,
               size: 20,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark ? Colors.white60 : Colors.black54),
+              color: isSelected ? Colors.white : Colors.white60,
             ),
             const SizedBox(width: 8),
             Text(
@@ -745,9 +756,7 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 fontSize: 14,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark ? Colors.white60 : Colors.black54),
+                color: isSelected ? Colors.white : Colors.white60,
               ),
             ),
           ],
