@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'models/todo.dart';
 import 'screens/auth_screen.dart';
+import 'screens/dashboard_screen.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
@@ -56,6 +57,7 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
   final ApiService _apiService = ApiService.instance;
   final AuthService _authService = AuthService.instance;
 
+  int _selectedTabIndex = 0; // 0: Dashboard, 1: Tasks
   List<Todo> _allTodos = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -93,7 +95,6 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
       });
     } catch (e) {
       final errorStr = e.toString();
-      // If 401 Unauthorized, automatically log out
       if (errorStr.contains('401') || errorStr.contains('Invalid token')) {
         await _authService.logout();
         return;
@@ -262,6 +263,14 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
     }
   }
 
+  void _navigateToTasksWithFilter(String status, String priority) {
+    setState(() {
+      _selectedTabIndex = 1;
+      _statusFilter = status;
+      _priorityFilter = priority;
+    });
+  }
+
   List<Todo> get _filteredTodos {
     return _allTodos.where((todo) {
       if (_statusFilter == 'PENDING' && todo.isCompleted) return false;
@@ -330,13 +339,15 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user?.username != null ? 'Hi, ${user!.username}' : 'TaskFlow',
+                  user?.username != null ? 'Hi, ${user!.username}' : 'TaskFlow Pro',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '${_allTodos.where((t) => !t.isCompleted).length} pending tasks',
+                  _selectedTabIndex == 0
+                      ? 'Dashboard Analytics'
+                      : '${_allTodos.where((t) => !t.isCompleted).length} pending tasks',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: isDark ? Colors.white60 : Colors.black54,
                     fontSize: 11,
@@ -365,222 +376,276 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _fetchTodos,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            // Dashboard Stats Header
-            SliverToBoxAdapter(
-              child: StatsHeader(todos: _allTodos),
-            ),
 
-            // Search Bar & Filter Options
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Column(
-                  children: [
-                    // Search Field
-                    TextField(
-                      controller: _searchController,
-                      onChanged: (val) {
-                        setState(() => _searchQuery = val.trim());
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Search tasks by title or description...',
-                        prefixIcon: Icon(Icons.search_rounded, color: accent.primary),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded, size: 18),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _searchQuery = '');
-                                },
-                              )
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+      // Tab Views: 0 = Dashboard, 1 = Tasks List
+      body: _selectedTabIndex == 0
+          ? DashboardScreen(
+              todos: _allTodos,
+              onAddTask: () => _openTodoForm(),
+              onNavigateToTasksWithFilter: _navigateToTasksWithFilter,
+              onToggleTodo: _toggleTodoStatus,
+              onRefresh: _fetchTodos,
+            )
+          : RefreshIndicator(
+              onRefresh: _fetchTodos,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // Dashboard Stats Header
+                  SliverToBoxAdapter(
+                    child: StatsHeader(todos: _allTodos),
+                  ),
 
-                    // Filter Chips Row
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
+                  // Search Bar & Filter Options
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Column(
                         children: [
-                          _buildFilterChip('ALL', 'All Tasks'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('PENDING', 'Pending'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('COMPLETED', 'Completed'),
-                          const SizedBox(width: 14),
-                          Container(
-                            height: 22,
-                            width: 1.2,
-                            color: isDark ? Colors.white24 : Colors.black12,
+                          // Search Field
+                          TextField(
+                            controller: _searchController,
+                            onChanged: (val) {
+                              setState(() => _searchQuery = val.trim());
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Search tasks by title or description...',
+                              prefixIcon:
+                                  Icon(Icons.search_rounded, color: accent.primary),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear_rounded, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _searchQuery = '');
+                                      },
+                                    )
+                                  : null,
+                            ),
                           ),
-                          const SizedBox(width: 14),
-                          _buildPriorityChip('ALL', 'All Priorities'),
-                          const SizedBox(width: 8),
-                          _buildPriorityChip('HIGH', 'High', const Color(0xFFF43F5E)),
-                          const SizedBox(width: 8),
-                          _buildPriorityChip('MEDIUM', 'Medium', const Color(0xFFF59E0B)),
-                          const SizedBox(width: 8),
-                          _buildPriorityChip('LOW', 'Low', const Color(0xFF10B981)),
+                          const SizedBox(height: 12),
+
+                          // Filter Chips Row
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildFilterChip('ALL', 'All Tasks'),
+                                const SizedBox(width: 8),
+                                _buildFilterChip('PENDING', 'Pending'),
+                                const SizedBox(width: 8),
+                                _buildFilterChip('COMPLETED', 'Completed'),
+                                const SizedBox(width: 14),
+                                Container(
+                                  height: 22,
+                                  width: 1.2,
+                                  color: isDark ? Colors.white24 : Colors.black12,
+                                ),
+                                const SizedBox(width: 14),
+                                _buildPriorityChip('ALL', 'All Priorities'),
+                                const SizedBox(width: 8),
+                                _buildPriorityChip(
+                                    'HIGH', 'High', const Color(0xFFF43F5E)),
+                                const SizedBox(width: 8),
+                                _buildPriorityChip(
+                                    'MEDIUM', 'Medium', const Color(0xFFF59E0B)),
+                                const SizedBox(width: 8),
+                                _buildPriorityChip(
+                                    'LOW', 'Low', const Color(0xFF10B981)),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // Main List / States
-            if (_isLoading)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('Syncing tasks...'),
-                    ],
                   ),
-                ),
-              )
-            else if (_errorMessage != null)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.cloud_off_rounded,
-                            size: 48,
-                            color: Colors.redAccent,
-                          ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                  // Main List / States
+                  if (_isLoading)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Syncing tasks...'),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Backend Connection Failed',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: isDark ? Colors.white60 : Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: _fetchTodos,
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Retry Connection'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-            else if (filtered.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            gradient: accent.gradient,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: accent.primary.withValues(alpha: 0.3),
-                                blurRadius: 18,
-                                offset: const Offset(0, 6),
+                      ),
+                    )
+                  else if (_errorMessage != null)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.cloud_off_rounded,
+                                  size: 48,
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Backend Connection Failed',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: _fetchTodos,
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Retry Connection'),
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.assignment_turned_in_rounded,
-                            size: 46,
-                            color: Colors.white,
+                        ),
+                      ),
+                    )
+                  else if (filtered.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  gradient: accent.gradient,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: accent.primary.withValues(alpha: 0.3),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.assignment_turned_in_rounded,
+                                  size: 46,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                _allTodos.isEmpty
+                                    ? 'No tasks yet!'
+                                    : 'No matching tasks found',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _allTodos.isEmpty
+                                    ? 'Create your first task to boost your productivity.'
+                                    : 'Try adjusting your search keywords or filter pills.',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                              if (_allTodos.isEmpty) ...[
+                                const SizedBox(height: 20),
+                                ElevatedButton.icon(
+                                  onPressed: () => _openTodoForm(),
+                                  icon: const Icon(Icons.add_rounded),
+                                  label: const Text('Add First Task'),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Text(
-                          _allTodos.isEmpty
-                              ? 'No tasks yet!'
-                              : 'No matching tasks found',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _allTodos.isEmpty
-                              ? 'Create your first task to boost your productivity.'
-                              : 'Try adjusting your search keywords or filter pills.',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: isDark ? Colors.white60 : Colors.black54,
-                          ),
-                        ),
-                        if (_allTodos.isEmpty) ...[
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: () => _openTodoForm(),
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('Add First Task'),
-                          ),
-                        ],
-                      ],
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final todo = filtered[index];
+                          return TodoCard(
+                            key: ValueKey(todo.id),
+                            todo: todo,
+                            onToggle: (val) => _toggleTodoStatus(todo, val),
+                            onEdit: () => _openTodoForm(todo),
+                            onDelete: () => _deleteTodo(todo),
+                          );
+                        },
+                        childCount: filtered.length,
+                      ),
                     ),
-                  ),
-                ),
-              )
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final todo = filtered[index];
-                    return TodoCard(
-                      key: ValueKey(todo.id),
-                      todo: todo,
-                      onToggle: (val) => _toggleTodoStatus(todo, val),
-                      onEdit: () => _openTodoForm(todo),
-                      onDelete: () => _deleteTodo(todo),
-                    );
-                  },
-                  childCount: filtered.length,
-                ),
-              ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 90)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 90)),
+                ],
+              ),
+            ),
+
+      // Bottom Navigation Bar
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF131B2E) : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+              width: 1.2,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavTab(
+              index: 0,
+              icon: Icons.dashboard_outlined,
+              selectedIcon: Icons.dashboard_rounded,
+              label: 'Dashboard',
+            ),
+            _buildNavTab(
+              index: 1,
+              icon: Icons.checklist_outlined,
+              selectedIcon: Icons.checklist_rounded,
+              label: 'My Tasks',
+            ),
           ],
         ),
       ),
+
+      // Floating Action Button
       floatingActionButton: Container(
         decoration: BoxDecoration(
           gradient: accent.gradient,
@@ -603,6 +668,64 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
             'New Task',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavTab({
+    required int index,
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+  }) {
+    final isSelected = _selectedTabIndex == index;
+    final accent = AppThemeController.instance.currentAccent;
+    final isDark = AppThemeController.instance.isDarkMode;
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTabIndex = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: isSelected ? accent.gradient : null,
+          color: isSelected
+              ? null
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: accent.primary.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? selectedIcon : icon,
+              size: 20,
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? Colors.white60 : Colors.black54),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 14,
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.white60 : Colors.black54),
+              ),
+            ),
+          ],
         ),
       ),
     );
