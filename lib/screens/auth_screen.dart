@@ -201,14 +201,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      _isLogin
-                          ? 'Welcome back! Sign in to continue.'
-                          : 'Create an account to organize your tasks.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark ? Colors.white60 : Colors.black54,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Text(
+                        _isLogin
+                            ? 'Welcome back! Sign in to continue.'
+                            : 'Create an account to organize your tasks.',
+                        key: ValueKey(_isLogin),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
                     ),
 
                     const SizedBox(height: 28),
@@ -300,7 +304,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       opacity: _fadeAnimation,
                       child: SlideTransition(
                         position: _slideAnimation,
-                        child: Container(
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOutCubic,
+                          alignment: Alignment.topCenter,
+                          child: Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF131B2E) : Colors.white,
@@ -378,31 +386,48 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Email Field (Register only)
-                                if (!_isLogin) ...[
-                                  TextFormField(
-                                    controller: _emailController,
-                                    keyboardType: TextInputType.emailAddress,
-                                    decoration: InputDecoration(
-                                      labelText: 'Email Address',
-                                      hintText: 'name@example.com',
-                                      prefixIcon: Icon(
-                                        Icons.mail_outline_rounded,
-                                        color: accent.primary,
+                                // Email Field (Register only) with smooth expansion
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 280),
+                                  transitionBuilder: (child, anim) {
+                                    return SizeTransition(
+                                      sizeFactor: anim,
+                                      axisAlignment: 0.0,
+                                      child: FadeTransition(
+                                        opacity: anim,
+                                        child: child,
                                       ),
-                                    ),
-                                    validator: (val) {
-                                      if (val == null || val.trim().isEmpty) {
-                                        return 'Email is required';
-                                      }
-                                      if (!val.contains('@') || !val.contains('.')) {
-                                        return 'Please enter a valid email address';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-                                ],
+                                    );
+                                  },
+                                  child: !_isLogin
+                                      ? Padding(
+                                          key: const ValueKey('reg_email_field'),
+                                          padding: const EdgeInsets.only(bottom: 16),
+                                          child: TextFormField(
+                                            controller: _emailController,
+                                            keyboardType: TextInputType.emailAddress,
+                                            decoration: InputDecoration(
+                                              labelText: 'Email Address',
+                                              hintText: 'name@example.com',
+                                              prefixIcon: Icon(
+                                                Icons.mail_outline_rounded,
+                                                color: accent.primary,
+                                              ),
+                                            ),
+                                            validator: (val) {
+                                              if (_isLogin) return null;
+                                              if (val == null || val.trim().isEmpty) {
+                                                return 'Email is required';
+                                              }
+                                              if (!val.contains('@') || !val.contains('.')) {
+                                                return 'Please enter a valid email address';
+                                              }
+                                              return null;
+                                            },
+                                          ),
+                                        )
+                                      : const SizedBox.shrink(key: ValueKey('empty_email_field')),
+                                ),
 
                                 // Password Field
                                 TextFormField(
@@ -441,28 +466,45 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Confirm Password (Register only)
-                                if (!_isLogin) ...[
-                                  TextFormField(
-                                    controller: _confirmPasswordController,
-                                    obscureText: _obscurePassword,
-                                    decoration: InputDecoration(
-                                      labelText: 'Confirm Password',
-                                      hintText: 'Re-enter your password',
-                                      prefixIcon: Icon(
-                                        Icons.lock_reset_rounded,
-                                        color: accent.primary,
+                                // Confirm Password (Register only) with smooth expansion
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 280),
+                                  transitionBuilder: (child, anim) {
+                                    return SizeTransition(
+                                      sizeFactor: anim,
+                                      axisAlignment: 0.0,
+                                      child: FadeTransition(
+                                        opacity: anim,
+                                        child: child,
                                       ),
-                                    ),
-                                    validator: (val) {
-                                      if (val == null || val.isEmpty) {
-                                        return 'Please confirm your password';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-                                ],
+                                    );
+                                  },
+                                  child: !_isLogin
+                                      ? Padding(
+                                          key: const ValueKey('reg_confirm_pw_field'),
+                                          padding: const EdgeInsets.only(bottom: 16),
+                                          child: TextFormField(
+                                            controller: _confirmPasswordController,
+                                            obscureText: _obscurePassword,
+                                            decoration: InputDecoration(
+                                              labelText: 'Confirm Password',
+                                              hintText: 'Re-enter your password',
+                                              prefixIcon: Icon(
+                                                Icons.lock_reset_rounded,
+                                                color: accent.primary,
+                                              ),
+                                            ),
+                                            validator: (val) {
+                                              if (_isLogin) return null;
+                                              if (val == null || val.isEmpty) {
+                                                return 'Please confirm your password';
+                                              }
+                                              return null;
+                                            },
+                                          ),
+                                        )
+                                      : const SizedBox.shrink(key: ValueKey('empty_confirm_pw')),
+                                ),
 
                                 const SizedBox(height: 8),
 
@@ -493,24 +535,28 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                                   strokeWidth: 2.5,
                                                 ),
                                               )
-                                            : Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    _isLogin ? 'Sign In' : 'Create Account',
-                                                    style: const TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.bold,
+                                            : AnimatedSwitcher(
+                                                duration: const Duration(milliseconds: 220),
+                                                child: Row(
+                                                  key: ValueKey(_isLogin),
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      _isLogin ? 'Sign In' : 'Create Account',
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    const Icon(
+                                                      Icons.arrow_forward_rounded,
+                                                      size: 20,
                                                       color: Colors.white,
                                                     ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  const Icon(
-                                                    Icons.arrow_forward_rounded,
-                                                    size: 20,
-                                                    color: Colors.white,
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
                                               ),
                                       ),
                                     ),
@@ -521,6 +567,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           ),
                         ),
                       ),
+                      ),
                     ),
 
                     const SizedBox(height: 24),
@@ -528,7 +575,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     // Quick switch text
                     TextButton(
                       onPressed: () => _switchTab(!_isLogin),
-                      child: RichText(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        child: RichText(
+                          key: ValueKey(_isLogin),
                         text: TextSpan(
                           text: _isLogin
                               ? "Don't have an account? "
@@ -546,6 +596,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               ),
                             ),
                           ],
+                          ),
                         ),
                       ),
                     ),

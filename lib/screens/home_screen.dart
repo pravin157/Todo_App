@@ -29,16 +29,19 @@ class _HomeScreenState extends State<HomeScreen> {
   String _statusFilter = 'ALL'; // ALL, PENDING, COMPLETED
   String _priorityFilter = 'ALL'; // ALL, HIGH, MEDIUM, LOW
 
+  late final PageController _pageController;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _selectedTabIndex);
     _fetchTodos();
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -254,12 +257,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _switchTab(int index) {
+    if (_selectedTabIndex == index) return;
+    setState(() => _selectedTabIndex = index);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   void _navigateToTasksWithFilter(String status, String priority) {
     setState(() {
       _selectedTabIndex = 1;
       _statusFilter = status;
       _priorityFilter = priority;
     });
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        1,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   List<Todo> get _filteredTodos {
@@ -299,9 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            setState(() => _selectedTabIndex = 0);
-          },
+          onTap: () => _switchTab(0),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
             child: Row(
@@ -352,13 +372,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
-                    Text(
-                      _selectedTabIndex == 0
-                          ? 'Dashboard Active • Tap anytime'
-                          : '${_allTodos.where((t) => !t.isCompleted).length} pending • Tap for Dashboard',
-                      style: TextStyle(
-                        color: isDark ? Colors.white60 : Colors.black54,
-                        fontSize: 11,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Text(
+                        _selectedTabIndex == 0
+                            ? 'Dashboard Active • Tap anytime'
+                            : '${_allTodos.where((t) => !t.isCompleted).length} pending • Tap for Dashboard',
+                        key: ValueKey(_selectedTabIndex),
+                        style: TextStyle(
+                          color: isDark ? Colors.white60 : Colors.black54,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ],
@@ -383,8 +407,14 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       // Tab Views: 0 = Dashboard, 1 = Tasks List
-      body: IndexedStack(
-        index: _selectedTabIndex,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          if (_selectedTabIndex != index) {
+            setState(() => _selectedTabIndex = index);
+          }
+        },
+        physics: const BouncingScrollPhysics(),
         children: [
           DashboardScreen(
             todos: _allTodos,
@@ -396,6 +426,7 @@ class _HomeScreenState extends State<HomeScreen> {
           RefreshIndicator(
             onRefresh: _fetchTodos,
             child: CustomScrollView(
+              key: const PageStorageKey('my_tasks_scroll_view'),
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 // Dashboard Stats Header
@@ -636,28 +667,31 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildNavTab(
-                    index: 0,
-                    icon: Icons.dashboard_outlined,
-                    selectedIcon: Icons.dashboard_rounded,
-                    label: 'Dashboard',
+          child: SizedBox(
+            height: 64,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildNavTab(
+                      index: 0,
+                      icon: Icons.dashboard_outlined,
+                      selectedIcon: Icons.dashboard_rounded,
+                      label: 'Dashboard',
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildNavTab(
-                    index: 1,
-                    icon: Icons.checklist_outlined,
-                    selectedIcon: Icons.checklist_rounded,
-                    label: 'My Tasks',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildNavTab(
+                      index: 1,
+                      icon: Icons.checklist_outlined,
+                      selectedIcon: Icons.checklist_rounded,
+                      label: 'My Tasks',
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -701,11 +735,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final accent = AppThemeController.instance.currentAccent;
 
     return InkWell(
-      onTap: () => setState(() => _selectedTabIndex = index),
+      onTap: () => _switchTab(index),
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        height: 48,
         decoration: BoxDecoration(
           gradient: isSelected ? accent.gradient : null,
           color: isSelected ? null : Colors.transparent,
