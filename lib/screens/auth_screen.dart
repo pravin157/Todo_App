@@ -3,7 +3,6 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/theme_dialog.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -115,50 +114,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
-  void _showServerSettings() {
-    final controller = TextEditingController(text: ApiService.instance.baseUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Backend Server URL'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Set Django API URL (e.g., http://10.0.2.2:8000/api for emulator or http://YOUR_PC_IP:8000/api for Wi-Fi):',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Base URL',
-                hintText: 'http://127.0.0.1:8000/api',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              ApiService.instance.setBaseUrl(controller.text);
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Updated URL to ${ApiService.instance.baseUrl}')),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -212,24 +167,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Top Actions (Theme & Server)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.dns_rounded),
-                          tooltip: 'Backend URL',
-                          onPressed: _showServerSettings,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.palette_outlined),
-                          tooltip: 'Customize Theme',
-                          onPressed: () => ThemeCustomizerSheet.show(context),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
 
                     // App Logo / Icon with animated glow
                     Container(

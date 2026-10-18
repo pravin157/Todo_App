@@ -6,7 +6,6 @@ import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/stats_header.dart';
-import 'widgets/theme_dialog.dart';
 import 'widgets/todo_card.dart';
 import 'widgets/todo_form_dialog.dart';
 
@@ -30,9 +29,9 @@ class TodoApp extends StatelessWidget {
         return MaterialApp(
           title: 'TaskFlow Pro',
           debugShowCheckedModeBanner: false,
-          theme: themeController.getLightTheme(),
+          theme: themeController.getDarkTheme(),
           darkTheme: themeController.getDarkTheme(),
-          themeMode: themeController.themeMode,
+          themeMode: ThemeMode.dark,
           home: !authService.isInitialized
               ? const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
@@ -220,18 +219,16 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
   }
 
   void _openTodoForm([Todo? todo]) {
-    showDialog(
-      context: context,
-      builder: (ctx) => TodoFormDialog(
-        initialTodo: todo,
-        onSave: (savedTodo) async {
-          if (todo == null) {
-            await _createTodo(savedTodo);
-          } else {
-            await _updateTodo(savedTodo);
-          }
-        },
-      ),
+    TodoFormDialog.show(
+      context,
+      initialTodo: todo,
+      onSave: (savedTodo) async {
+        if (todo == null) {
+          await _createTodo(savedTodo);
+        } else {
+          await _updateTodo(savedTodo);
+        }
+      },
     );
   }
 
@@ -239,17 +236,31 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
+        backgroundColor: const Color(0xFF131B2E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF1E293B)),
+        ),
+        title: const Text(
+          'Sign Out',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to sign out?',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+              backgroundColor: const Color(0xFFF43F5E),
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Sign Out'),
@@ -306,63 +317,77 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            // User Avatar with gradient border
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                gradient: accent.gradient,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.primary.withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  initialLetter,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        title: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            setState(() => _selectedTabIndex = 0);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Row(
               children: [
-                Text(
-                  user?.username != null ? 'Hi, ${user!.username}' : 'TaskFlow Pro',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                // User Avatar with gradient border
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: accent.gradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.primary.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      initialLetter,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                 ),
-                Text(
-                  _selectedTabIndex == 0
-                      ? 'Dashboard Analytics'
-                      : '${_allTodos.where((t) => !t.isCompleted).length} pending tasks',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark ? Colors.white60 : Colors.black54,
-                    fontSize: 11,
-                  ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          user?.username != null ? 'Hi, ${user!.username}' : 'TaskFlow Pro',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.dashboard_outlined,
+                          size: 14,
+                          color: accent.primary,
+                        ),
+                      ],
+                    ),
+                    Text(
+                      _selectedTabIndex == 0
+                          ? 'Dashboard Active • Tap anytime'
+                          : '${_allTodos.where((t) => !t.isCompleted).length} pending • Tap for Dashboard',
+                      style: TextStyle(
+                        color: isDark ? Colors.white60 : Colors.black54,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Customize Appearance',
-            icon: const Icon(Icons.palette_outlined),
-            onPressed: () => ThemeCustomizerSheet.show(context),
-          ),
           IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded),
