@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'models/todo.dart';
 import 'services/api_service.dart';
-import 'widgets/server_config_dialog.dart';
 import 'widgets/stats_header.dart';
 import 'widgets/todo_card.dart';
 import 'widgets/todo_form_dialog.dart';
@@ -238,14 +237,6 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
     );
   }
 
-  void _openServerConfig() {
-    showDialog(
-      context: context,
-      builder: (ctx) => ServerConfigDialog(
-        onConfigChanged: _fetchTodos,
-      ),
-    );
-  }
 
   List<Todo> get _filteredTodos {
     return _allTodos.where((todo) {
@@ -313,11 +304,6 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Server Settings',
-            icon: const Icon(Icons.settings_ethernet_rounded),
-            onPressed: _openServerConfig,
-          ),
           IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded),
@@ -460,21 +446,10 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: _openServerConfig,
-                              icon: const Icon(Icons.settings_rounded),
-                              label: const Text('Server Settings'),
-                            ),
-                            const SizedBox(width: 12),
-                            FilledButton.icon(
-                              onPressed: _fetchTodos,
-                              icon: const Icon(Icons.refresh_rounded),
-                              label: const Text('Retry'),
-                            ),
-                          ],
+                        FilledButton.icon(
+                          onPressed: _fetchTodos,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Retry Connection'),
                         ),
                       ],
                     ),
